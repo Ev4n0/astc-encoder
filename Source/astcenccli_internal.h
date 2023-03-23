@@ -83,6 +83,9 @@ struct cli_config_options
 	/** @brief @c true if diagnostic images should be stored. */
 	bool diagnostic_images;
 
+	/** @brief @c true if collect block data. */
+	bool collect_data;
+
 	/** @brief The low exposure fstop for error computation. */
 	int low_fstop;
 

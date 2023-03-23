@@ -29,6 +29,8 @@
 #include <sstream>
 #include <vector>
 #include <memory>
+#include <iostream>
+#include <fstream>
 
 /* ============================================================================
 	Data structure definitions
@@ -1127,6 +1129,11 @@ static int edit_astcenc_config(
 			argidx += 1;
 			cli_config.diagnostic_images = true;
 		}
+		else if (!strcmp(argv[argidx], "-collectdata"))
+		{
+			argidx += 1;
+			cli_config.collect_data = true;
+		}
 		else // check others as well
 		{
 			print_error("ERROR: Argument '%s' not recognized\n", argv[argidx]);
@@ -1827,6 +1834,58 @@ static void print_diagnostic_images(
 }
 
 /**
+ * @brief Collect data from the encoded blocks.
+ *
+ * @param filename		The input file path
+ * @param context       The context to use.
+ * @param image         The compressed image to analyze.
+ */
+static void collect_part_data(
+	char **argv,
+	astcenc_context* context,
+	const astc_compressed_image& image
+) {
+	size_t block_cols = (image.dim_x + image.block_x - 1) / image.block_x;
+	size_t block_rows = (image.dim_y + image.block_y - 1) / image.block_y;
+
+	uint8_t* data = image.data;
+
+	int partitionCountCounts[5] = {0, 0, 0, 0, 0};
+	int blockCount = 0;
+
+	for (size_t block_y = 0; block_y < block_rows; block_y++)
+	{
+		for (size_t block_x = 0; block_x < block_cols; block_x++)
+		{
+			astcenc_block_info block_info;
+			astcenc_get_block_info(context, data, &block_info);
+
+			partitionCountCounts[block_info.partition_count]++;
+			blockCount++;
+
+			data += 16;
+		}
+	}
+
+	std::fstream dataFile;
+	dataFile.open("./research/block_data.csv", std::ios::app);
+	if (!dataFile)
+        printf("No such file found\n");
+    else {
+		dataFile << argv[2] << ", " 
+				 << argv[4] << ", "
+				 << argv[5] << ", "
+				 << partitionCountCounts[0] << ", "
+				 << partitionCountCounts[1] << ", "
+				 << partitionCountCounts[2] << ", "
+				 << partitionCountCounts[3] << ", "
+				 << partitionCountCounts[4] << ", "
+				 << blockCount << std::endl;
+		dataFile.close();
+	}
+}
+
+/**
  * @brief The main entry point.
  *
  * @param argc   The number of arguments.
@@ -1931,7 +1990,7 @@ int astcenc_main(
 	}
 
 	// Initialize cli_config_options with default values
-	cli_config_options cli_config { 0, 1, 1, false, false, false, -10, 10,
+	cli_config_options cli_config { 0, 1, 1, false, false, false, false, -10, 10,
 		{ ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B, ASTCENC_SWZ_A },
 		{ ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B, ASTCENC_SWZ_A } };
 
@@ -2247,6 +2306,11 @@ int astcenc_main(
 	if (cli_config.diagnostic_images && !is_null)
 	{
 		print_diagnostic_images(codec_context, image_comp, output_filename);
+	}
+
+	if (cli_config.collect_data && !is_null)
+	{
+		collect_part_data(argv, codec_context, image_comp);
 	}
 
 	free_image(image_uncomp_in);
