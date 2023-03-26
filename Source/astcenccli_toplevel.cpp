@@ -21,6 +21,7 @@
 
 #include "astcenc.h"
 #include "astcenccli_internal.h"
+#include "stb_image_write.h"
 
 #include <cassert>
 #include <cstring>
@@ -1836,34 +1837,65 @@ static void print_diagnostic_images(
 /**
  * @brief Collect data from the encoded blocks.
  *
- * @param filename		The input file path
+ * @param argv			Input arguments.
  * @param context       The context to use.
  * @param image         The compressed image to analyze.
+ * @param input			The uncompressed input image
  */
 static void collect_part_data(
 	char **argv,
 	astcenc_context* context,
-	const astc_compressed_image& image
+	const astc_compressed_image& image,
+	const astcenc_image& input
 ) {
 	size_t block_cols = (image.dim_x + image.block_x - 1) / image.block_x;
 	size_t block_rows = (image.dim_y + image.block_y - 1) / image.block_y;
 
-	uint8_t* data = image.data;
+	int short_block_x = image.dim_x % image.block_x;
+	int short_block_y = image.dim_y % image.block_y;
+
+	uint8_t* image_data = image.data;
 
 	int partitionCountCounts[5] = {0, 0, 0, 0, 0};
 	int blockCount = 0;
+
+	std::string fname;
+	std::string output_file = argv[2];
+	size_t index = output_file.find_last_of(".");
+	std::string stem = output_file;
+	if (index != std::string::npos)
+	{
+		stem = stem.substr(0, index);
+	}
 
 	for (size_t block_y = 0; block_y < block_rows; block_y++)
 	{
 		for (size_t block_x = 0; block_x < block_cols; block_x++)
 		{
 			astcenc_block_info block_info;
-			astcenc_get_block_info(context, data, &block_info);
-
+			astcenc_get_block_info(context, image_data, &block_info);
 			partitionCountCounts[block_info.partition_count]++;
-			blockCount++;
 
-			data += 16;
+			fname = "./research/" + std::to_string(block_info.partition_count) + "/" 
+						 + stem + "_" + std::to_string(blockCount) + ".png";
+			int w = image.block_x;
+			int h = image.block_y;
+			int channels = 4;
+			int* input_data = static_cast<int*>(input.data[0]);
+			int offset = (block_x * image.block_x) + (block_y * image.dim_x * image.block_y);
+			int stride = image.dim_x * 4;
+
+			if (block_x == (block_cols - 1) && short_block_x != 0) {
+				w = short_block_x;
+			}
+			if (block_y == (block_rows - 1) && short_block_y != 0) {
+				h = short_block_y;
+			}
+
+			stbi_write_png(fname.c_str(), w, h, channels, input_data + offset, stride);
+
+			blockCount++;
+			image_data += 16;
 		}
 	}
 
@@ -1872,8 +1904,8 @@ static void collect_part_data(
 	if (!dataFile)
         printf("No such file found\n");
     else {
-		dataFile << argv[2] << ", " 
-				 << argv[4] << ", "
+		dataFile << output_file << ", " 
+				 << image.block_x << "x" << image.block_y << ", "
 				 << argv[5] << ", "
 				 << partitionCountCounts[0] << ", "
 				 << partitionCountCounts[1] << ", "
@@ -2310,7 +2342,7 @@ int astcenc_main(
 
 	if (cli_config.collect_data && !is_null)
 	{
-		collect_part_data(argv, codec_context, image_comp);
+		collect_part_data(argv, codec_context, image_comp, *image_uncomp_in);
 	}
 
 	free_image(image_uncomp_in);
