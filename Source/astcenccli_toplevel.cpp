@@ -1860,12 +1860,13 @@ static void collect_part_data(
 	int blockCount = 0;
 
 	std::string fname;
-	std::string output_file = argv[2];
-	size_t index = output_file.find_last_of(".");
-	std::string stem = output_file;
-	if (index != std::string::npos)
+	std::string input_file = argv[2];
+	size_t index_start = input_file.find_last_of("/");
+	size_t index_end = input_file.find_last_of(".");
+	std::string stem = input_file;
+	if (index_start != std::string::npos && index_end != std::string::npos)
 	{
-		stem = stem.substr(0, index);
+		stem = stem.substr(index_start, index_end);
 	}
 
 	for (size_t block_y = 0; block_y < block_rows; block_y++)
@@ -1904,7 +1905,7 @@ static void collect_part_data(
 	if (!dataFile)
         printf("No such file found\n");
     else {
-		dataFile << output_file << ", " 
+		dataFile << input_file << ", " 
 				 << image.block_x << "x" << image.block_y << ", "
 				 << argv[5] << ", "
 				 << partitionCountCounts[0] << ", "
